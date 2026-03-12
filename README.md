@@ -1,0 +1,1 @@
+## Build an end to end machine learning project that predicts the compressive strength of concrete using mix proportions, water-cement ratio, curing conditions, and age of the sample
