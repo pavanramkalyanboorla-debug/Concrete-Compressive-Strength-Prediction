@@ -8,5 +8,6 @@ torchvision
 xgboost
 tensorflow
 keras
-sklearn
+dill
+catboost
 -e .
