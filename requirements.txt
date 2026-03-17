@@ -10,4 +10,5 @@ tensorflow
 keras
 dill
 catboost
+pyarrow
 -e .
