@@ -8,4 +8,5 @@ torchvision
 xgboost
 tensorflow
 keras
+sklearn
 -e .
