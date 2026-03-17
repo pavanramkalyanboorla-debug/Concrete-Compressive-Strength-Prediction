@@ -23,34 +23,22 @@ class DataTransformation:
     def get_data_transformer_object(self):
         try:
             numerical_columns = []
-            categorical_columns = []
             num_pipeline = Pipeline(
                 steps=[
-                    ('imputer', SimpleImputer(strategy='median')),
                     ('scaler', StandardScaler())
                 ]
             )
-            cat_pipeline = Pipeline(
-                steps=[
-                    ('imputer', SimpleImputer(strategy='most_frequent')),
-                    ('one_hot_encoder', OneHotEncoder()),
-                    ('scaler', StandardScaler(with_mean=False))
-                ]
-            )
             logging.info("numerical columns: {numerical_columns}")
-            logging.info("categorical columns: {categorical_columns}")
-
 
             preprocessor = ColumnTransformer(
                 transformers=[
-                    ('num_pipeline', num_pipeline, numerical_columns),
-                    ('cat_pipeline', cat_pipeline, categorical_columns)
+                    ('num_pipeline', num_pipeline, numerical_columns)
                 ]
             )
             return preprocessor
 
         except Exception as e:
-            logging.info("Error occurred : {e}")
+            logging.info(f"Error occurred : {e}")
             raise CustomException(e, sys)
         
         
@@ -65,14 +53,13 @@ class DataTransformation:
 
             preprocessing_obj = self.get_data_transformer_object()
 
-            target_column_name = 'target'
-            numerical_columns = []
-            categorical_columns = []
+            target_column_name = 'Concrete_Strength'
+            numerical_columns = ['Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water', 'Superplasticizer','Coarse_Aggregate', 'Fine_Aggregate', 'Age', 'Water_Binder_Ratio','Log_Age', 'Cement_x_Age', 'SCM_Ratio']
 
-            input_feature_train_df = train_df.drop(columns=[target_column_name], axis=1)
+            input_feature_train_df = train_df.drop(labels=[target_column_name], axis=1)
             target_feature_train_df = train_df[target_column_name]
 
-            input_feature_test_df = test_df.drop(columns=[target_column_name], axis=1)
+            input_feature_test_df = test_df.drop(labels=[target_column_name], axis=1)
             target_feature_test_df = test_df[target_column_name]
 
             logging.info(
@@ -91,7 +78,12 @@ class DataTransformation:
                 file_path=self.data_transformation_config.preprocessor_obj_file_path,
                 obj=preprocessing_obj
             )
+            return (
+                train_arr,
+                test_arr,
+                self.data_transformation_config.preprocessor_obj_file_path
+            )
 
         except Exception as e:
-            logging.info("Error occurred : {e}")
-            raise CustomException(e, sys)        
+            logging.info(f"Error occurred : {e}")
+            raise CustomException(e, sys)   
