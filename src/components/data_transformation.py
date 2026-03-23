@@ -22,13 +22,14 @@ class DataTransformation:
 
     def get_data_transformer_object(self):
         try:
-            numerical_columns = []
+            numerical_columns = ['Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water', 'Superplasticizer','Coarse_Aggregate', 'Fine_Aggregate', 'Age', 'Water_Binder_Ratio','Log_Age', 'Cement_x_Age', 'SCM_Ratio']
+
             num_pipeline = Pipeline(
                 steps=[
                     ('scaler', StandardScaler())
                 ]
             )
-            logging.info("numerical columns: {numerical_columns}")
+            logging.info(f"numerical columns: {numerical_columns}")
 
             preprocessor = ColumnTransformer(
                 transformers=[

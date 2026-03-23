@@ -116,4 +116,5 @@ class ModelTrainer:
 
             
         except Exception as e:
+            logging.info(f'errror occured {e}')
             raise CustomException(e,sys)
