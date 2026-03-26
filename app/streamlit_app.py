@@ -68,14 +68,14 @@ col_result, col_chart = st.columns([1, 2])
 
 if predict_btn:
     payload = {
-        "cement":             cement,
-        "blast_furnace_slag": blast_furnace_slag,
-        "fly_ash":            fly_ash,
-        "water":              water,
-        "superplasticizer":   superplasticizer,
-        "coarse_aggregate":   coarse_aggregate,
-        "fine_aggregate":     fine_aggregate,
-        "age":                age,
+        "Cement":             cement,
+        "Blast_Furnace_Slag": blast_furnace_slag,
+        "Fly_Ash":            fly_ash,
+        "Water":              water,
+        "Superplasticizer":   superplasticizer,
+        "Coarse_Aggregate":   coarse_aggregate,
+        "Fine_Aggregate":     fine_aggregate,
+        "Age":                int(age),
     }
 
     with st.spinner("Running prediction…"):
@@ -126,33 +126,39 @@ if predict_btn:
             with col_chart:
                 st.markdown("#### 🔬 Feature Importance")
 
-                labels = [k.replace("_", " ").title() for k in importance.keys()]
-                values = list(importance.values())
-                sorted_pairs = sorted(zip(values, labels), reverse=True)
-                values_s, labels_s = zip(*sorted_pairs)
+                if importance:
+                    labels = [k.replace("_", " ").title() for k in importance.keys()]
+                    values = list(importance.values())
+                    sorted_pairs = sorted(zip(values, labels), reverse=True)
+                    values_s, labels_s = zip(*sorted_pairs)
 
-                fig = px.bar(
-                    x=list(values_s),
-                    y=list(labels_s),
-                    orientation="h",
-                    color=list(values_s),
-                    color_continuous_scale=["#a8d5f5", "#1e3a5f"],
-                    labels={"x": "Importance Score", "y": "Feature"},
-                    text=[f"{v:.4f}" for v in values_s]
-                )
-                fig.update_traces(textposition="outside")
-                fig.update_layout(
-                    height=380,
-                    coloraxis_showscale=False,
-                    margin=dict(t=10, b=10, l=10, r=60),
-                    yaxis=dict(autorange="reversed")
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                    fig = px.bar(
+                        x=list(values_s),
+                        y=list(labels_s),
+                        orientation="h",
+                        color=list(values_s),
+                        color_continuous_scale=["#a8d5f5", "#1e3a5f"],
+                        labels={"x": "Importance Score", "y": "Feature"},
+                        text=[f"{v:.4f}" for v in values_s]
+                    )
+                    fig.update_traces(textposition="outside")
+                    fig.update_layout(
+                        height=380,
+                        coloraxis_showscale=False,
+                        margin=dict(t=10, b=10, l=10, r=60),
+                        yaxis=dict(autorange="reversed")
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Feature importance is currently unavailable for this model. Showing input summary instead.")
 
                 # Input summary table
                 st.markdown("#### 📋 Input Summary")
                 input_df = {
-                    "Feature": labels,
+                    "Feature": [
+                        "Cement", "Blast Furnace Slag", "Fly Ash", "Water",
+                        "Superplasticizer", "Coarse Aggregate", "Fine Aggregate", "Age"
+                    ],
                     "Value (kg/m³ or days)": [
                         cement, blast_furnace_slag, fly_ash, water,
                         superplasticizer, coarse_aggregate, fine_aggregate, age
