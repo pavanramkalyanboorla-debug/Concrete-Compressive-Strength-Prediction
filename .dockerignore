@@ -1,0 +1,48 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv / env dirs
+venv/
+env/
+.venv/
+. env/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.whl
+
+# Logs
+logs/
+*.log
+
+# Data + model artifacts (not needed in image)
+artifacts/data/
+data/
+catboost_info/
+
+# Jupyter notebooks and local development
+*.ipynb
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Test output
+**/__pycache__/
+**/*.pytest_cache/
