@@ -1,20 +1,33 @@
-FROM python:3.13.12-slim
+FROM python:3.10-slim AS builder
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency metadata first (better caching)
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies into a virtual environment using uv
+RUN uv sync --frozen --no-dev --python 3.10
+
+# --- Final stage (smaller) ---
+FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy the whole virtualenv from builder
+COPY --from=builder /app/.venv /app/.venv
 
-# Copy app code
-COPY app/ ./app/
-COPY model/ ./model/
+# Copy application code
+COPY . .
 
-# Expose ports: 8000 = FastAPI, 8501 = Streamlit
+# Ensure the virtual env is used
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Expose both FastAPI and Streamlit (if you still run both)
 EXPOSE 8000 8501
 
-# Start both services using a shell script
-COPY start.sh .
-RUN chmod +x start.sh
-
-CMD ["./start.sh"]
+# Default command (FastAPI; adjust if needed)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
