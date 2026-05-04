@@ -1,33 +1,29 @@
+FROM ghcr.io/astral-sh/uv:latest AS uv-stage
+
 FROM python:3.10-slim AS builder
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv-stage /uv /usr/local/bin/uv
 
-# Set working directory
 WORKDIR /app
 
-# Copy dependency metadata first (better caching)
-COPY pyproject.toml uv.lock ./
+# Copy both dependency files – uv needs the lockfile for --frozen
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --no-dev --frozen
 
-# Install dependencies into a virtual environment using uv
-RUN uv sync --frozen --no-dev --python 3.10
-
-# --- Final stage (smaller) ---
+# ------------------------------------------------------------
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy the whole virtualenv from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy application code
-COPY . .
+COPY src/ src/
+COPY app/ app/
+COPY artifacts/ artifacts/
 
-# Ensure the virtual env is used
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Expose both FastAPI and Streamlit (if you still run both)
-EXPOSE 8000 8501
+EXPOSE 8501 8000
+ENV PYTHONPATH=/app
 
-# Default command (FastAPI; adjust if needed)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "PYTHONPATH=/app streamlit run app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false"]

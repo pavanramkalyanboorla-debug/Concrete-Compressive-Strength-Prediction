@@ -1,13 +1,14 @@
-# src/pipeline/predict_pipeline.py
 import os
 import sys
 import pickle
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
+
 from src.utils.exceptions import CustomException
 from src.utils.logger import logging
 from src.utils.utils import load_object
+
 
 # ------------------------------------------------------------
 # Configuration
@@ -19,35 +20,32 @@ class PredictPipelineConfig:
 
 
 # ------------------------------------------------------------
-# Feature engineering (mirrors training exactly)
+# Feature engineering (mirrors training EXACTLY)
 # ------------------------------------------------------------
+FEATURE_COLS = [
+    'Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
+    'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age',
+    'Water_Binder_Ratio', 'Log_Age', 'Cement_x_Age', 'SCM_Ratio'
+]
+
+LOG_COLS = ['Blast_Furnace_Slag', 'Fly_Ash', 'Superplasticizer']  # ← NEW
+
+
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create the same 12 engineered features used during training.
-    Input: DataFrame with original 8 columns (Cement, Blast_Furnace_Slag,
-    Fly_Ash, Water, Superplasticizer, Coarse_Aggregate, Fine_Aggregate, Age)
-    Output: DataFrame with 12 feature columns ready for the preprocessor.
+    NOTE: log1p is NOT applied here – the preprocessor handles it now.
     """
     df = df.copy()
-    # Avoid division by zero
     binder = df['Cement'] + df['Blast_Furnace_Slag'] + df['Fly_Ash']
     df['Water_Binder_Ratio'] = df['Water'] / binder.replace(0, np.nan)
     df['Log_Age'] = np.log(df['Age'].replace(0, np.nan))
     df['Cement_x_Age'] = df['Cement'] * df['Age']
     df['SCM_Ratio'] = (df['Blast_Furnace_Slag'] + df['Fly_Ash']) / df['Cement'].replace(0, np.nan)
 
-    # Clean up any infinities / NaN from division by zero
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    # Fill NaN with 0 (or use median – 0 is safe for these ratios)
     df.fillna(0, inplace=True)
-
-    # Keep the exact 12 columns in the order the preprocessor expects
-    feature_cols = [
-        'Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
-        'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age',
-        'Water_Binder_Ratio', 'Log_Age', 'Cement_x_Age', 'SCM_Ratio'
-    ]
-    return df[feature_cols]
+    return df[FEATURE_COLS]
 
 
 # ------------------------------------------------------------
@@ -73,12 +71,8 @@ class PredictPipeline:
     def predict(self, input_data):
         """
         Main prediction method.
-        Accepts:
-            - dict (single sample)
-            - list of dicts / 2D array-like
-            - pandas DataFrame with original 8 columns
-        Returns:
-            numpy array of predicted strengths.
+        Accepts: dict, list of dicts, numpy array (8 cols), or DataFrame.
+        Returns: numpy array of predicted strengths.
         """
         try:
             # Convert input to DataFrame
@@ -87,21 +81,17 @@ class PredictPipeline:
             elif isinstance(input_data, list):
                 df = pd.DataFrame(input_data)
             elif isinstance(input_data, np.ndarray):
-                cols = [
-                    'Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
-                    'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age'
-                ]
+                cols = ['Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
+                        'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age']
                 df = pd.DataFrame(input_data, columns=cols)
             elif isinstance(input_data, pd.DataFrame):
                 df = input_data.copy()
             else:
-                raise ValueError("Unsupported input type. Use dict, list, np.ndarray, or DataFrame.")
+                raise ValueError("Unsupported input type.")
 
-            # Ensure required columns exist
-            required_raw = [
-                'Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
-                'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age'
-            ]
+            # Ensure required raw columns exist
+            required_raw = ['Cement', 'Blast_Furnace_Slag', 'Fly_Ash', 'Water',
+                            'Superplasticizer', 'Coarse_Aggregate', 'Fine_Aggregate', 'Age']
             missing = set(required_raw) - set(df.columns)
             if missing:
                 raise ValueError(f"Missing columns in input: {missing}")
@@ -109,12 +99,11 @@ class PredictPipeline:
             # 1. Engineer features
             df_eng = engineer_features(df)
 
-            # 2. Scale / preprocess
+            # 2. The preprocessor now handles log1p + scaling in one go
             scaled = self.preprocessor.transform(df_eng)
 
             # 3. Predict
             predictions = self.model.predict(scaled)
-
             return predictions
 
         except Exception as e:
@@ -124,18 +113,12 @@ class PredictPipeline:
 # ------------------------------------------------------------
 # Convenience function for single prediction
 # ------------------------------------------------------------
-def predict_strength(cement, blast_furnace_slag, fly_ash, water,
-                     superplasticizer, coarse_aggregate, fine_aggregate, age):
-    """
-    Quick prediction from individual numeric values.
-    Returns a float.
-    """
+def predict_strength(cement, blast_furnace_slag, fly_ash, water, superplasticizer,
+                     coarse_aggregate, fine_aggregate, age):
     pipeline = PredictPipeline()
     input_dict = {
-        'Cement': cement,
-        'Blast_Furnace_Slag': blast_furnace_slag,
-        'Fly_Ash': fly_ash,
-        'Water': water,
+        'Cement': cement, 'Blast_Furnace_Slag': blast_furnace_slag,
+        'Fly_Ash': fly_ash, 'Water': water,
         'Superplasticizer': superplasticizer,
         'Coarse_Aggregate': coarse_aggregate,
         'Fine_Aggregate': fine_aggregate,
@@ -146,18 +129,13 @@ def predict_strength(cement, blast_furnace_slag, fly_ash, water,
 
 
 # ------------------------------------------------------------
-# Standalone test (if run directly)
+# Standalone test
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    # Example usage
     sample = {
-        'Cement': 300,
-        'Blast_Furnace_Slag': 100,
-        'Fly_Ash': 100,
-        'Water': 180,
-        'Superplasticizer': 5,
-        'Coarse_Aggregate': 1000,
-        'Fine_Aggregate': 700,
+        'Cement': 300, 'Blast_Furnace_Slag': 100, 'Fly_Ash': 100,
+        'Water': 180, 'Superplasticizer': 5,
+        'Coarse_Aggregate': 1000, 'Fine_Aggregate': 700,
         'Age': 28
     }
     try:
