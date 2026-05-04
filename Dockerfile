@@ -6,7 +6,7 @@ COPY --from=uv-stage /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy dependency files and readme (hatchling needs readme)
+# Copy dependency files and readme
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --frozen
 
@@ -17,12 +17,18 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 
+# Copy source code
 COPY src/ src/
 COPY app/ app/
-COPY artifacts/ artifacts/
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
+
+# 1. Download the raw dataset (from the UCI‑derived source)
+ADD https://figshare.unimelb.edu.au/ndownloader/files/13603310 data/Dataset2.xlsx
+
+# 2. Train the model (this creates artifacts/model.pkl and preprocessor.pkl)
+RUN python src/training.py
 
 EXPOSE 7860
 
