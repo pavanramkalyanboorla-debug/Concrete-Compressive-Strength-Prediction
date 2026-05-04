@@ -1,96 +1,214 @@
-<div align="center">
+# Concrete Mix Optimizer 🧱
 
-# 🧱 Concrete Mix Optimizer
+**AI-powered concrete mix design — predict strength, optimize ingredients, understand why.**
 
-**AI-powered concrete mix design with engineering constraints, optimization, and explainability**
-
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-green)]()
-[![Streamlit](https://img.shields.io/badge/UI-Streamlit-red)]()
-[![Docker](https://img.shields.io/badge/docker-ready-blue)]()
-[![HuggingFace](https://img.shields.io/badge/🤗-Live_App-yellow)]()
-
-</div>
+[![Live App](https://img.shields.io/badge/🤗%20Live%20App-HuggingFace-yellow)](https://huggingface.co/spaces/PavanBoorla/concrete-mix-optimizer)
+[![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit-red)](https://streamlit.io/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-green)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-ready-blue)](https://www.docker.com/)
+[![Optuna](https://img.shields.io/badge/Optimization-Optuna-purple)](https://optuna.org/)
 
 ---
 
-> **This project replaces traditional trial-and-error concrete mix design with an AI-driven optimization system.**
+Most ML projects in the concrete domain stop at "given a mix, predict strength." That's not how real mix design works. In practice, you start from a target — say, M35 grade — and need to figure out what proportions to use while staying inside material cost budgets, workability limits, and durability code requirements. This project tries to do that.
+
+It combines a gradient boosting model with physics-based volume balancing, Optuna-driven optimization, and SHAP explainability into a single deployable app. You can use it through a Streamlit UI or hit the FastAPI endpoints directly.
 
 ---
 
-## 🚀 What This Project Actually Does
+## What it does
 
-Most ML projects in this domain stop at:
+**Tab 1 — Predict:** Enter any mix (cement, slag, fly ash, water, superplasticizer, aggregates, age) and get back the predicted compressive strength, estimated slump, water/binder ratio, approximate cost per m³, and a list of any constraint violations — all in one shot.
 
-> “Given a mix → predict strength”
+**Tab 2 — Optimize:** Give it a target strength and a trial budget, and Optuna searches for the best mix. In Pareto mode it finds the full trade-off frontier between cost and how close the predicted strength is to your target — you can pick whichever point on that front fits your project. Single-objective mode just returns the best mix directly with all ingredient quantities shown.
 
-That’s not useful in real engineering.
-
-### This system does the reverse:
-
-> **Given a target strength → generate a valid, cost-efficient mix that satisfies real-world constraints**
+**Tab 3 — Explain:** Submit a mix and get a SHAP waterfall plot that breaks down exactly how much each ingredient pushed the prediction up or down from the model's baseline. There's also a plain-English summary of the top drivers.
 
 ---
 
-## 🧠 Core Idea
+## How it works under the hood
 
-This is not just ML.
+### Data & features
 
-It’s a **decision system** combining:
+The dataset comes from the UCI concrete compressive strength dataset (1,030 samples) covering a wide range of mix proportions and curing ages. Eight raw features go in: Cement, Blast Furnace Slag, Fly Ash, Water, Superplasticizer, Coarse Aggregate, Fine Aggregate, and Age. Four engineered features are derived on top — Water/Binder Ratio, log(Age), Cement×Age interaction, and SCM Ratio (supplementary cementitious materials as a fraction of binder).
 
-- 🧱 Civil engineering principles (absolute volume method)
-- 🛑 Hard constraints (durability, workability, mix limits)
-- 🤖 Machine learning (strength prediction)
-- 🔍 Optimization (search best mix)
-- 📊 Explainability (why the mix works)
+A critical issue that was found and fixed during development: `log1p` transformation was being applied during EDA but not consistently during inference. This was corrected by baking the transformation directly into the scikit-learn preprocessor pipeline, so training, prediction, optimization, and SHAP all go through exactly the same preprocessing path.
 
----
+### Model training
 
-## 🔥 Why This Stands Out
+Training happens inside Docker at build time, not at startup. The Dockerfile downloads the dataset from Figshare, runs `src/training.py`, and serializes `model.pkl` and `preprocessor.pkl` into `artifacts/`. This means the container starts immediately with no training overhead. Gradient Boosting was selected as the final model after evaluating several algorithms.
 
-| Typical ML Project | This Project |
-|-------------------|-------------|
-| Predicts output | Designs input |
-| Ignores physics | Uses engineering constraints |
-| Single answer | Trade-off exploration (Pareto) |
-| Black box | Explainable with SHAP |
+### Physics layer
 
-👉 This is closer to **engineering decision intelligence**, not just regression.
+Before any constraint checking or optimization, mixes go through the absolute volume method (`src/physics.py`). This recalculates fine and coarse aggregate masses from the binder + water volumes to ensure the mix actually fills 1 m³, accounts for moisture corrections on aggregates, and computes paste volume. If the paste volume check fails (binder + water > 1 m³), the mix is rejected before it even reaches the model.
 
----
+### Engineering constraints (`src/constraints.py`)
 
-## ⚙️ How It Works
+Every mix gets checked against real code-inspired limits:
+- Water/binder ratio ≤ 0.50
+- Cement content between 320–450 kg/m³
+- SCM replacement ≤ 60% of binder
+- Paste volume between 26–34%
+- Estimated slump between 50–100 mm
 
-### 1. Feature Engineering
-From raw mix:
+These are enforced as hard rejection criteria during optimization (any violation returns a penalty of 1e6 in the Optuna objective) and shown as warnings to the user in the prediction tab.
 
-- Water-Binder Ratio  
-- Log(Age)  
-- Cement × Age  
-- SCM Ratio  
+### Optimization (`src/optimization.py`)
 
----
+Two modes via Optuna:
 
-### 2. Preprocessing (Critical Fix)
+**Single-objective:** Minimizes `|predicted_strength − target| + 0.001 × cost`. Fast, returns one best mix.
 
-A major issue was identified and fixed:
+**Multi-objective (Pareto):** Simultaneously minimizes `|predicted_strength − target|` and `cost` as separate objectives, using Optuna's NSGA-II sampler. Returns a full Pareto front — every non-dominated mix that can't be improved on one objective without getting worse on the other. Plotted as a cost vs. strength-error scatter so you can pick your own trade-off point.
 
-- Earlier: log transformation was applied in EDA but not during prediction  
-- Result: inconsistent inputs → wrong predictions  
+### SHAP explainability (`src/shap_utils.py`)
 
-### ✅ Fix:
-- `log1p` is now part of the **preprocessor pipeline**
-- Same transformation is applied in:
-  - Training
-  - Optimization
-  - Prediction
-  - SHAP
+Uses `shap.TreeExplainer` on the gradient boosting model. The `ShapExplainer` class is initialized with the already-loaded model and preprocessor rather than creating a second pipeline instance. Waterfall plots show the contribution of each of the 12 features (8 raw + 4 engineered) to the final prediction.
 
 ---
 
-### 3. Model Training
+## Project structure
 
-From your actual logs:
+```
+├── app/
+│   ├── streamlit_app.py      # Streamlit UI (3 tabs: Predict, Optimize, Explain)
+│   └── main.py               # FastAPI app with /predict, /predict/batch, /optimize, /shap
+├── src/
+│   ├── constants.py           # Specific gravities, cost table, CONFIG limits
+│   ├── physics.py             # Absolute volume method, moisture correction
+│   ├── constraints.py         # Engineering constraint checks + slump estimate
+│   ├── optimization.py        # Optuna single/multi-objective studies
+│   ├── shap_utils.py          # ShapExplainer class, waterfall + reasoning text
+│   └── pipeline/
+│       ├── predict_pipeline.py   # PredictPipeline class + feature engineering
+│       └── training_pipeline.py  # Training script
+├── data/                      # Dataset (downloaded at Docker build time)
+├── artifacts/                 # model.pkl + preprocessor.pkl (generated at build)
+├── notebooks/                 # EDA and experimentation notebooks
+├── tests/                     # Test suite
+├── Dockerfile                 # Multi-stage build: uv for deps, trains model in container
+├── docker-compose.yml
+└── pyproject.toml             # Dependencies managed with uv
+```
 
-- Dataset: 1130 samples  
-- Features: 12 (8 raw + 4 engineered)  
-- Algorithm: Gradient Boosting (best selected)  
+---
+
+## Running locally
+
+**With Docker (recommended):**
+
+```bash
+docker compose up --build
+```
+
+The build step downloads the dataset, trains the model, and starts the Streamlit app on port 7860. The first build takes a few minutes; subsequent starts are instant since the model is baked into the image.
+
+**Without Docker:**
+
+```bash
+# Install uv if you don't have it
+pip install uv
+
+# Install dependencies
+uv sync
+
+# Train the model first
+python src/training.py
+
+# Start the app
+streamlit run app/streamlit_app.py --server.port 7860
+```
+
+**API only:**
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Then hit `http://localhost:8000/docs` for the interactive Swagger UI.
+
+---
+
+## API reference
+
+**POST /predict**
+```json
+{
+  "Cement": 350,
+  "Blast_Furnace_Slag": 50,
+  "Fly_Ash": 50,
+  "Water": 180,
+  "Superplasticizer": 5,
+  "Coarse_Aggregate": 1000,
+  "Fine_Aggregate": 700,
+  "Age": 28
+}
+```
+Returns `predicted_strength_mpa` and `strength_category`.
+
+**POST /predict/batch** — same schema as above but wrapped in a list.
+
+**POST /optimize**
+```json
+{
+  "target_strength": 40.0,
+  "n_trials": 100,
+  "multi_objective": true
+}
+```
+Returns either a single best mix or a Pareto front depending on `multi_objective`.
+
+**GET /shap** — query params mirror the predict input fields, returns a base64-encoded waterfall plot PNG.
+
+---
+
+## Material cost table
+
+Costs are approximate Indian market rates (₹/kg):
+
+| Material | Cost |
+|---|---|
+| Cement | ₹7.00 |
+| Blast Furnace Slag | ₹3.00 |
+| Fly Ash | ₹2.00 |
+| Superplasticizer | ₹50.00 |
+| Coarse Aggregate | ₹1.50 |
+| Fine Aggregate | ₹1.20 |
+| Water | ₹0.05 |
+
+These are editable in `src/constants.py` and the optimizer will automatically factor in any changes.
+
+---
+
+## Design decisions worth noting
+
+**Why Optuna over a grid search or scipy.optimize?** The feasible mix space is non-convex and has hard discontinuities from the constraint rejections. Optuna's TPE sampler handles this well and the Pareto mode gives something genuinely more useful than a single-point optimum for an engineering decision problem.
+
+**Why train inside Docker?** Avoids the common HuggingFace Spaces issue where a pre-trained `.pkl` gets out of sync with the code or data version. The artifact is always regenerated from the current dataset and preprocessing logic.
+
+**Why absolute volume method?** It ensures physically consistent mixes — a mix where cement + water + aggregates don't actually sum to 1 m³ is nonsensical. Skipping this (as most pure-ML implementations do) means the model gets inputs that couldn't exist in reality.
+
+---
+
+## Dependencies
+
+Main ones — full list in `pyproject.toml`:
+
+- `scikit-learn` — preprocessing and model utilities
+- `catboost`, `xgboost` — candidate models during training
+- `optuna` — optimization framework
+- `shap` — explainability
+- `streamlit` — web UI
+- `fastapi` + `uvicorn` — REST API
+- `plotly` — interactive charts
+
+Dependency management uses `uv` for fast, reproducible installs.
+
+---
+
+## Links
+
+- **Live app:** https://huggingface.co/spaces/PavanBoorla/concrete-mix-optimizer
+- **GitHub:** https://github.com/pavanramkalyanboorla-debug/Concrete-Compressive-Strength-Prediction
+- **Dataset:** UCI Concrete Compressive Strength (via Figshare)
