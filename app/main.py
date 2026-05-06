@@ -51,8 +51,7 @@ except Exception as e:
     logger.exception(load_error)
 
 try:
-    with open(uncertainty_path, 'rb') as f:
-        uncertainty_params = pickle.load(f)
+    uncertainty_params = joblib.load(uncertainty_path)
     logger.info("Uncertainty params loaded (σ = %.2f MPa)", uncertainty_params["cv_std"])
 except FileNotFoundError:
     logger.warning("Uncertainty params not found – intervals disabled")

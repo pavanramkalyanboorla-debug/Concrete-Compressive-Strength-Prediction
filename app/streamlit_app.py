@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-import pickle
+import joblib
 
 from src.constants import COST, CONFIG
 from src.physics import apply_physics
@@ -83,8 +83,7 @@ def load_explainer(_pipeline):
 @st.cache_resource
 def load_uncertainty_params():
     try:
-        with open("artifacts/uncertainty_params.pkl", "rb") as f:
-            return pickle.load(f)
+        return joblib.load("artifacts/uncertainty_params.pkl")
     except FileNotFoundError:
         return None
 
