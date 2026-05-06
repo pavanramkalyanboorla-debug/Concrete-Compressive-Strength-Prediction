@@ -17,7 +17,7 @@ COPY --from=deps /app/.venv /app/.venv
 WORKDIR /app
 
 # Copy only the files required for training
-COPY data/concrete.csv data/concrete.csv
+
 COPY src/constants.py src/constants.py
 COPY src/components/ src/components/
 COPY src/pipeline/ src/pipeline/
