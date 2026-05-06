@@ -25,9 +25,15 @@ COPY src/utils/ src/utils/
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
-RUN python src/pipeline/training_pipeline.py
-RUN python src/train_uncertainty.py
 
+# Download dataset needed by training pipeline
+RUN python -c "import pandas as pd; df = pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls'); df.to_csv('data/concrete.csv', index=False)"
+
+# Train the model
+RUN python src/pipeline/training_pipeline.py
+
+# Compute uncertainty parameters
+RUN python src/train_uncertainty.py
 # ------------------------------------------------------------
 # Stage 3: final app image (fast rebuild on UI changes)
 # ------------------------------------------------------------
