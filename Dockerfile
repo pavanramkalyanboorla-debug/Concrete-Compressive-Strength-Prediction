@@ -27,7 +27,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
 
 # Download dataset needed by training pipeline
-RUN python -c "import pandas as pd; df = pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls'); df.to_csv('data/concrete.csv', index=False)"
+RUN python -c "import pandas as pd; df = pd.read_csv('https://huggingface.co/spaces/Abdulabin/Concrete_Strengths_Prediction/raw/main/concrete_data.csv'); df.to_csv('data/concrete.csv', index=False)"
 
 # Train the model
 RUN python src/pipeline/training_pipeline.py
