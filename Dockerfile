@@ -32,6 +32,7 @@ RUN mkdir -p data && python -c "import pandas as pd; df = pd.read_csv('https://h
 RUN python src/pipeline/training_pipeline.py
 
 # Compute uncertainty parameters
+COPY src/*.py src/
 RUN python src/train_uncertainty.py
 # ------------------------------------------------------------
 # Stage 3: final app image (fast rebuild on UI changes)
