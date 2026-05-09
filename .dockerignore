@@ -1,4 +1,4 @@
-__pycache__
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -15,11 +15,6 @@ venv/
 *.log
 .git/
 .gitignore
-.dockerignore
-Dockerfile
-docker-compose.yml
-README.md
 notebooks/
 tests/
-data/Dataset2.xlsx
-*.lock
+data/

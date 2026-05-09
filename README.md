@@ -7,15 +7,6 @@ sdk: docker
 app_port: 7860
 pinned: false
 ---
----
-title: Concrete Mix Optimizer
-emoji: 🧱
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
 
 # Concrete Mix Optimizer 🧱
 
